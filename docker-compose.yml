@@ -1,0 +1,19 @@
+version: '2'
+
+services:
+  tor:
+    image: jessfraz/tor-proxy
+    restart: always
+    volumes:
+      - ./torrc.default:/etc/tor/torrc.default:ro
+  
+  coredns:
+    build: .
+    restart: always
+    ports:
+      - 55553:55553
+    links:
+      - tor
+    volumes:
+      - ./Corefile:/Corefile:ro
+    command: [ "-conf", "/Corefile"]
