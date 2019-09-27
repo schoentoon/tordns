@@ -2,7 +2,8 @@ package tordns
 
 import (
 	"errors"
-	"fmt"
+	"net"
+	"strconv"
 
 	"golang.org/x/net/proxy"
 
@@ -38,7 +39,11 @@ func setup(c *caddy.Controller) error {
 
 func configParse(c *caddy.Controller) (TorDnsPlugin, error) {
 	t := TorDnsPlugin{
-		TorDns: &TorDns{},
+		TorDns: &TorDns{
+			maxRetries:  3,
+			maxPoolSize: 10,
+			connPool:    make(chan net.Conn, 10),
+		},
 	}
 
 	if c.Next() {
@@ -50,15 +55,33 @@ func configParse(c *caddy.Controller) (TorDnsPlugin, error) {
 		for c.NextBlock() {
 			switch c.Val() {
 			case "proxy":
-				args = c.RemainingArgs()
-				if len(args) != 1 {
-					return t, fmt.Errorf("Expected just one argument for tor address, got %d", len(args))
+				if !c.NextArg() {
+					return t, c.ArgErr()
 				}
-				dialer, err := proxy.SOCKS5("tcp", args[0], nil, proxy.Direct)
+				dialer, err := proxy.SOCKS5("tcp", c.Val(), nil, proxy.Direct)
 				if err != nil {
 					return t, err
 				}
 				t.Proxy = dialer
+			case "retries":
+				if !c.NextArg() {
+					return t, c.ArgErr()
+				}
+				retries, err := strconv.Atoi(c.Val())
+				if err != nil {
+					return t, err
+				}
+				t.maxRetries = retries
+			case "poolsize":
+				if !c.NextArg() {
+					return t, c.ArgErr()
+				}
+				poolsize, err := strconv.Atoi(c.Val())
+				if err != nil {
+					return t, err
+				}
+				t.maxPoolSize = int32(poolsize)
+				t.connPool = make(chan net.Conn, poolsize)
 			}
 		}
 	}
