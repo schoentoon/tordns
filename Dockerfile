@@ -18,7 +18,7 @@ RUN make
 
 FROM debian:latest
 
-RUN apt-get update && apt-get install -y dnsutils
+RUN apt-get update && apt-get install -y dnsutils ca-certificates
 
 COPY --from=builder /root/coredns/coredns /bin/coredns
 

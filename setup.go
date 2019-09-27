@@ -1,6 +1,7 @@
 package tordns
 
 import (
+	"crypto/tls"
 	"errors"
 	"net"
 	"strconv"
@@ -10,6 +11,9 @@ import (
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
 	clog "github.com/coredns/coredns/plugin/pkg/log"
+	"github.com/coredns/coredns/plugin/pkg/parse"
+	pkgtls "github.com/coredns/coredns/plugin/pkg/tls"
+	"github.com/coredns/coredns/plugin/pkg/transport"
 
 	"github.com/caddyserver/caddy"
 )
@@ -51,7 +55,14 @@ func configParse(c *caddy.Controller) (TorDnsPlugin, error) {
 		if len(args) < 1 {
 			return t, errors.New("no hidden services specified?")
 		}
-		t.TorDns.hiddenService = args[0]
+		trans, addr := parse.Transport(args[0])
+		if trans != transport.DNS && trans != transport.TLS {
+			return t, errors.New("only plain dns and tls are supported")
+		}
+		t.TorDns.hiddenService = addr
+		if trans == transport.TLS {
+			t.tlsConfig = new(tls.Config)
+		}
 		for c.NextBlock() {
 			switch c.Val() {
 			case "proxy":
@@ -82,6 +93,22 @@ func configParse(c *caddy.Controller) (TorDnsPlugin, error) {
 				}
 				t.maxPoolSize = int32(poolsize)
 				t.connPool = make(chan net.Conn, poolsize)
+			case "tls":
+				args := c.RemainingArgs()
+				if len(args) > 3 {
+					return t, c.ArgErr()
+				}
+
+				tlsConfig, err := pkgtls.NewTLSConfigFromArgs(args...)
+				if err != nil {
+					return t, err
+				}
+				t.tlsConfig = tlsConfig
+			case "tls_servername":
+				if !c.NextArg() {
+					return t, c.ArgErr()
+				}
+				t.tlsConfig.ServerName = c.Val()
 			}
 		}
 	}

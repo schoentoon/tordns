@@ -2,6 +2,7 @@ package tordns
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"net"
 	"sync/atomic"
@@ -20,6 +21,7 @@ type TorDnsPlugin struct {
 
 type TorDns struct {
 	hiddenService string
+	tlsConfig     *tls.Config
 
 	maxRetries  int
 	maxPoolSize int32
@@ -55,6 +57,9 @@ func (t *TorDns) NewConnection() (net.Conn, error) {
 		return nil, err
 	}
 	atomic.AddInt32(&t.poolSize, 1)
+	if t.tlsConfig != nil {
+		return tls.Client(conn, t.tlsConfig), nil
+	}
 	return conn, nil
 }
 
