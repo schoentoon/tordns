@@ -1,0 +1,3 @@
+Log notice stderr
+
+ControlSocket /var/lib/tor/control

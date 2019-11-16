@@ -13,14 +13,10 @@ $ ./coredns -plugins | grep tordns
 Now to actually configure the plugin have a look at the following Corefile example
 ```
 . {
-  tordns dns4torpnlfs2ifuz2s2yf3fc7rdmsbhm6rw75euj35pac6ap25zgqad.onion:53 {
-    proxy 127.0.0.1:9050
-    retries 3
-    poolsize 10
+  tordns {
+    controlsocket /var/lib/tor/control
   }
 }
 ```
 
-In this case it'll use the dns server behind the hidden service on port 53. The `proxy` setting is used to specify where the tor socks5 proxy is located.
-The `retries` option configures how often it'll retry a request (with a 5 second time window) whenever it detects a dead connection in the connection pool.
-And lastly the `poolsize` configures how many connections it can have open at maximum.
+In this case it'll connect with tor through the control socket at `/var/lib/tor/control`. From there on it'll resolve the actual dns queries using the builtin tor resolver. Do keep in mind that due to the way this resolver works we can only do A and AAAA queries, so you may want to add another resolver to catch other types.

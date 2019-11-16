@@ -2,18 +2,26 @@ version: '2'
 
 services:
   tor:
-    image: jessfraz/tor-proxy
-    restart: always
+    build: ./tor/
+    restart: unless-stopped
     volumes:
-      - ./torrc.default:/etc/tor/torrc.default:ro
+      - tor-control:/var/lib/tor/
   
   coredns:
     build: .
-    restart: always
+    restart: unless-stopped
     ports:
-      - 55553:55553
+      - 55553:55553/udp
+      - 55553:55553/tcp
     links:
+      - tor
+    depends_on:
+      - tor
+    volumes_from:
       - tor
     volumes:
       - ./Corefile:/Corefile:ro
     command: [ "-conf", "/Corefile"]
+
+volumes:
+  tor-control:
