@@ -100,6 +100,8 @@ func (t TorDnsPlugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns
 		fallthrough
 	case dns.TypeAAAA:
 		err = t.Conn.ResolveAsync(qname, false)
+	default:
+		return plugin.NextOrFailure(t.Name(), t.Next, ctx, w, r)
 	}
 
 	if err != nil {
