@@ -106,34 +106,36 @@ func (t TorDnsPlugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns
 		return dns.RcodeServerFailure, err
 	}
 
-	for answer := range ch {
-		if answer.Address == qname {
-			answers := []dns.RR{}
-			until := time.Until(answer.Expires).Seconds()
-			if until < 0 {
-				until = 0
+	for {
+		select {
+		case <-ctx.Done():
+			return plugin.NextOrFailure(t.Name(), t.Next, ctx, w, r)
+		case answer := <-ch:
+			if answer.Address == qname {
+				answers := []dns.RR{}
+				until := time.Until(answer.Expires).Seconds()
+				if until < 0 {
+					until = 0
+				}
+				ttl := uint32(until)
+
+				switch state.QType() {
+				case dns.TypeA:
+					answers = a(qname, ttl, net.ParseIP(answer.NewAddress))
+				case dns.TypeAAAA:
+					answers = aaaa(qname, ttl, net.ParseIP(answer.NewAddress))
+				}
+
+				m := new(dns.Msg)
+				m.SetReply(r)
+				m.Authoritative = true
+				m.Answer = answers
+
+				w.WriteMsg(m)
+				return dns.RcodeSuccess, nil
 			}
-			ttl := uint32(until)
-
-			switch state.QType() {
-			case dns.TypeA:
-				answers = a(qname, ttl, net.ParseIP(answer.NewAddress))
-			case dns.TypeAAAA:
-				answers = aaaa(qname, ttl, net.ParseIP(answer.NewAddress))
-			}
-
-			m := new(dns.Msg)
-			m.SetReply(r)
-			m.Authoritative = true
-			m.Answer = answers
-
-			w.WriteMsg(m)
-			return dns.RcodeSuccess, nil
-
 		}
 	}
-
-	return plugin.NextOrFailure(t.Name(), t.Next, ctx, w, r)
 }
 
 func a(zone string, ttl uint32, ip net.IP) []dns.RR {
