@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/textproto"
 	"sync"
 	"time"
 
@@ -29,7 +30,16 @@ type TorDns struct {
 	pool      []chan control.AddrMapEvent
 }
 
-func (t *TorDns) init() error {
+func (t *TorDns) setupConnection() error {
+	if t.controlSocketPath != "" {
+		conn, err := textproto.Dial("unix", t.controlSocketPath)
+		if err != nil {
+			log.Errorf("%s", err)
+		}
+
+		t.Conn = control.NewConn(conn)
+	}
+
 	if t.Conn == nil {
 		return fmt.Errorf("conn shouldn't be nil anymore!")
 	}
@@ -44,8 +54,22 @@ func (t *TorDns) init() error {
 	return t.Conn.AddEventListener(t.addrCallback, control.EventCodeAddrMap)
 }
 
+func (t *TorDns) handle() {
+	for {
+		err := t.Conn.HandleEvents(context.Background())
+		if err != nil {
+			log.Debugf("HandleEvents returned %s", err)
+
+			err = t.setupConnection()
+			if err != nil {
+				log.Errorf("%s", err)
+			}
+		}
+	}
+}
+
 func (t *TorDns) consumeAddrCallbacks() {
-	go t.Conn.HandleEvents(context.Background())
+	go t.handle()
 	for event := range t.addrCallback {
 		addr, ok := event.(*control.AddrMapEvent)
 		if !ok {
@@ -77,8 +101,13 @@ func (t *TorDns) unregister(del chan control.AddrMapEvent) {
 
 	for idx, ch := range t.pool {
 		if ch == del {
-			t.pool[len(t.pool)-1], t.pool[idx] = t.pool[idx], t.pool[len(t.pool)-1]
-			t.pool = t.pool[:len(t.pool)-1]
+			if len(t.pool) == 1 {
+				t.pool = []chan control.AddrMapEvent{}
+			} else {
+				t.pool[idx] = t.pool[len(t.pool)-1]
+				t.pool = t.pool[:len(t.pool)-1]
+			}
+			return
 		}
 	}
 }

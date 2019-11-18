@@ -1,9 +1,6 @@
 package tordns
 
 import (
-	"errors"
-	"net/textproto"
-
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
 	clog "github.com/coredns/coredns/plugin/pkg/log"
@@ -28,20 +25,7 @@ func setup(c *caddy.Controller) error {
 	}
 
 	c.OnStartup(func() error {
-		if t.controlSocketPath != "" {
-			conn, err := textproto.Dial("unix", t.controlSocketPath)
-			if err != nil {
-				return err
-			}
-
-			t.Conn = control.NewConn(conn)
-		}
-
-		if t.Conn == nil {
-			return errors.New("unable to initialize the tor connection")
-		}
-
-		return t.init()
+		return t.setupConnection()
 	})
 
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
